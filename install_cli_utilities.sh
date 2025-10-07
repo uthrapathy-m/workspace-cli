@@ -137,12 +137,21 @@ install_fzf() {
     chown -R $ACTUAL_USER:$ACTUAL_USER $USER_HOME/.fzf
     
     # Install FZF
-    sudo -u $ACTUAL_USER bash -c "$USER_HOME/.fzf/install --all --no-update-rc"
+    cd $USER_HOME/.fzf
+    sudo -u $ACTUAL_USER bash -c "$USER_HOME/.fzf/install --all --no-update-rc --no-bash --no-zsh --no-fish"
     
-    # Add to bashrc if not present
+    # Manually add to bashrc with proper configuration
     if ! grep -q "/.fzf.bash" $USER_HOME/.bashrc 2>/dev/null; then
-        echo '[ -f ~/.fzf.bash ] && source ~/.fzf.bash' >> $USER_HOME/.bashrc
+        cat >> $USER_HOME/.bashrc << 'FZFEOF'
+
+# FZF configuration
+[ -f ~/.fzf.bash ] && source ~/.fzf.bash
+export FZF_DEFAULT_OPTS='--height 40% --layout=reverse --border'
+FZFEOF
     fi
+    
+    # Fix permissions
+    chown -R $ACTUAL_USER:$ACTUAL_USER $USER_HOME/.fzf*
     
     log_success "FZF installed"
     log_info "FZF keybindings: Ctrl+R (history), Ctrl+T (files), Alt+C (cd)"
@@ -160,15 +169,10 @@ install_neovim() {
     
     # Download and install Neovim
     cd /tmp
-    log_info "Fetching latest Neovim version..."
+    log_info "Downloading Neovim stable version..."
     
-    # Get the latest version tag
-    NVIM_VERSION=$(curl -s https://api.github.com/repos/neovim/neovim/releases/latest | grep -oP '"tag_name": "\K[^"]+')
-    
-    if [ -z "$NVIM_VERSION" ]; then
-        log_warning "Could not fetch latest version, using stable version v0.10.2"
-        NVIM_VERSION="v0.10.2"
-    fi
+    # Use known stable version - more reliable than fetching latest
+    NVIM_VERSION="v0.10.2"
     
     log_info "Installing Neovim $NVIM_VERSION..."
     
@@ -247,14 +251,27 @@ install_zoxide() {
         return
     fi
     
-    curl -sS https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | bash
+    # Download and install to /usr/local/bin
+    cd /tmp
+    ZOXIDE_VERSION=$(curl -s https://api.github.com/repos/ajeetdsouza/zoxide/releases/latest | grep -oP '"tag_name": "\K[^"]+')
+    if [ -z "$ZOXIDE_VERSION" ]; then
+        ZOXIDE_VERSION="v0.9.4"
+    fi
+    
+    curl -sS -L "https://github.com/ajeetdsouza/zoxide/releases/download/${ZOXIDE_VERSION}/zoxide-${ZOXIDE_VERSION#v}-x86_64-unknown-linux-musl.tar.gz" -o zoxide.tar.gz
+    tar -xzf zoxide.tar.gz
+    mv zoxide /usr/local/bin/
+    chmod +x /usr/local/bin/zoxide
+    rm zoxide.tar.gz
     
     # Add to bashrc
     if ! grep -q "zoxide init" $USER_HOME/.bashrc 2>/dev/null; then
+        echo '' >> $USER_HOME/.bashrc
+        echo '# Zoxide initialization' >> $USER_HOME/.bashrc
         echo 'eval "$(zoxide init bash)"' >> $USER_HOME/.bashrc
     fi
     
-    log_success "Zoxide installed"
+    log_success "Zoxide installed to /usr/local/bin"
     log_info "Use 'z' command to jump to directories (e.g., 'z documents')"
 }
 
