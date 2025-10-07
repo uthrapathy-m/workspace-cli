@@ -160,8 +160,32 @@ install_neovim() {
     
     # Download and install Neovim
     cd /tmp
-    curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux64.tar.gz
+    log_info "Fetching latest Neovim version..."
+    
+    # Get the latest version tag
+    NVIM_VERSION=$(curl -s https://api.github.com/repos/neovim/neovim/releases/latest | grep -oP '"tag_name": "\K[^"]+')
+    
+    if [ -z "$NVIM_VERSION" ]; then
+        log_warning "Could not fetch latest version, using stable version v0.10.2"
+        NVIM_VERSION="v0.10.2"
+    fi
+    
+    log_info "Installing Neovim $NVIM_VERSION..."
+    
+    # Download with explicit version
+    curl -LO "https://github.com/neovim/neovim/releases/download/${NVIM_VERSION}/nvim-linux64.tar.gz"
+    
+    # Verify download
+    if [ ! -f nvim-linux64.tar.gz ] || [ ! -s nvim-linux64.tar.gz ]; then
+        log_error "Failed to download Neovim"
+        return 1
+    fi
+    
     tar -xzf nvim-linux64.tar.gz
+    
+    # Remove old installation if exists
+    rm -rf /opt/nvim
+    
     mv nvim-linux64 /opt/nvim
     ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim
     ln -sf /usr/local/bin/nvim /usr/local/bin/vim
