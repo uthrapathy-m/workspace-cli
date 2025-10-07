@@ -172,15 +172,32 @@ install_neovim() {
     
     log_info "Installing Neovim $NVIM_VERSION..."
     
-    # Download with explicit version
-    curl -LO "https://github.com/neovim/neovim/releases/download/${NVIM_VERSION}/nvim-linux64.tar.gz"
+    # Download with proper redirect following and output file
+    curl -fsSL "https://github.com/neovim/neovim/releases/download/${NVIM_VERSION}/nvim-linux64.tar.gz" -o nvim-linux64.tar.gz
     
-    # Verify download
-    if [ ! -f nvim-linux64.tar.gz ] || [ ! -s nvim-linux64.tar.gz ]; then
-        log_error "Failed to download Neovim"
+    # Verify download - check if file is larger than 1MB (should be ~40MB)
+    if [ ! -f nvim-linux64.tar.gz ]; then
+        log_error "Failed to download Neovim - file not found"
         return 1
     fi
     
+    FILE_SIZE=$(stat -c%s nvim-linux64.tar.gz 2>/dev/null || stat -f%z nvim-linux64.tar.gz 2>/dev/null)
+    if [ "$FILE_SIZE" -lt 1000000 ]; then
+        log_error "Downloaded file is too small ($FILE_SIZE bytes), likely an error page"
+        log_info "Trying alternative download method..."
+        rm nvim-linux64.tar.gz
+        wget -q --show-progress "https://github.com/neovim/neovim/releases/download/${NVIM_VERSION}/nvim-linux64.tar.gz" || {
+            log_error "Alternative download also failed. Installing from PPA instead..."
+            sudo add-apt-repository ppa:neovim-ppa/stable -y
+            apt update
+            $INSTALL_CMD neovim
+            log_success "Neovim installed via PPA"
+            nvim --version | head -n1
+            return 0
+        }
+    fi
+    
+    log_info "Download successful ($(echo "scale=1; $FILE_SIZE/1048576" | bc 2>/dev/null || echo "unknown") MB), extracting..."
     tar -xzf nvim-linux64.tar.gz
     
     # Remove old installation if exists
