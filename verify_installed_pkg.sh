@@ -63,12 +63,17 @@ check_tool "Docker" "docker" "--version"
 check_tool "Docker Compose" "docker-compose" "--version"
 check_tool "AWS CLI" "aws" "--version"
 check_tool "Terraform" "terraform" "version"
+check_tool "Terragrunt" "terragrunt" "--version"
+check_tool "Terraform-docs" "terraform-docs" "--version"
 check_tool "Kubectl" "kubectl" "version --client --short"
 check_tool "Helm" "helm" "version --short"
-check_tool "Ansible" "ansible" "--version"
-check_tool "Jenkins" "jenkins" "--version"
 check_tool "eksctl" "eksctl" "version"
 check_tool "k9s" "k9s" "version"
+check_tool "Ansible" "ansible" "--version"
+check_tool "Jenkins" "jenkins" "--version"
+check_tool "Minikube" "minikube" "version"
+check_tool "Prometheus" "prometheus" "--version"
+check_tool "Grafana" "grafana-server" "-v"
 check_tool "lazydocker" "lazydocker" "--version"
 
 # Programming Languages
@@ -80,6 +85,7 @@ check_tool "Python3" "python3" "--version"
 check_tool "pip3" "pip3" "--version"
 check_tool "Node.js" "node" "--version"
 check_tool "npm" "npm" "--version"
+check_tool "Go" "go" "version"
 
 # Advanced CLI Utilities
 echo -e "\n${MAGENTA}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -120,7 +126,6 @@ echo -e "\n${MAGENTA}${BOLD}━━━━━━━━━━━━━━━━━�
 echo -e "${CYAN}${BOLD}Data Processing Tools${NC}"
 echo -e "${MAGENTA}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
 
-check_tool "jq" "jq" "--version"
 check_tool "yq" "yq" "--version"
 
 # System Tools
@@ -129,10 +134,16 @@ echo -e "${CYAN}${BOLD}System Tools${NC}"
 echo -e "${MAGENTA}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
 
 check_tool "Git" "git" "--version"
+check_tool "Vim" "vim" "--version"
+check_tool "Nano" "nano" "--version"
+check_tool "Unzip" "unzip" "-v"
+check_tool "Tar" "tar" "--version"
+check_tool "Gzip" "gzip" "--version"
+check_tool "jq" "jq" "--version"
+check_tool "Tree" "tree" "--version"
+check_tool "Htop" "htop" "--version"
+check_tool "Net-tools" "netstat" "--version"
 check_tool "tmux" "tmux" "-V"
-check_tool "vim" "vim" "--version"
-check_tool "htop" "htop" "--version"
-check_tool "tree" "tree" "--version"
 
 # Check services status
 echo -e "\n${MAGENTA}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -161,6 +172,32 @@ else
         echo -e "${YELLOW}!${NC} Jenkins service: Not running (but installed)"
     else
         echo -e "${RED}✗${NC} Jenkins service: Not installed"
+    fi
+    ((NOT_INSTALLED++))
+fi
+
+# Check Prometheus service
+if systemctl is-active --quiet prometheus 2>/dev/null; then
+    echo -e "${GREEN}✓${NC} Prometheus service: Running (Port 9090)"
+    ((INSTALLED++))
+else
+    if command -v prometheus &> /dev/null; then
+        echo -e "${YELLOW}!${NC} Prometheus service: Not running (but installed)"
+    else
+        echo -e "${RED}✗${NC} Prometheus service: Not installed"
+    fi
+    ((NOT_INSTALLED++))
+fi
+
+# Check Grafana service
+if systemctl is-active --quiet grafana-server 2>/dev/null; then
+    echo -e "${GREEN}✓${NC} Grafana service: Running (Port 3000)"
+    ((INSTALLED++))
+else
+    if command -v grafana-server &> /dev/null; then
+        echo -e "${YELLOW}!${NC} Grafana service: Not running (but installed)"
+    else
+        echo -e "${RED}✗${NC} Grafana service: Not installed"
     fi
     ((NOT_INSTALLED++))
 fi
@@ -236,18 +273,53 @@ echo -e "${MAGENTA}${BOLD}━━━━━━━━━━━━━━━━━━
 echo -e "${CYAN}${BOLD}Quick Test Commands${NC}"
 echo -e "${MAGENTA}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
 
-echo -e "${BLUE}Try these commands to test your tools:${NC}\n"
+echo -e "${BLUE}Try these commands to test your DevOps tools:${NC}\n"
+echo -e "${CYAN}Core Tools:${NC}"
+echo "  docker ps                  # Test Docker"
+echo "  docker-compose --version   # Test Docker Compose"
+echo "  aws --version              # Test AWS CLI"
+echo "  terraform version          # Test Terraform"
+echo "  terragrunt --version       # Test Terragrunt"
+echo "  terraform-docs --version   # Test Terraform-docs"
+echo ""
+echo -e "${CYAN}Kubernetes Tools:${NC}"
+echo "  kubectl version --client   # Test Kubectl"
+echo "  helm version --short       # Test Helm"
+echo "  eksctl version             # Test eksctl"
+echo "  k9s version                # Test k9s"
+echo "  minikube version           # Test Minikube"
+echo ""
+echo -e "${CYAN}Programming Languages:${NC}"
+echo "  python3 --version          # Test Python"
+echo "  pip3 --version             # Test pip"
+echo "  node --version             # Test Node.js"
+echo "  npm --version              # Test npm"
+echo "  go version                 # Test Go"
+echo ""
+echo -e "${CYAN}Monitoring & CI/CD:${NC}"
+echo "  prometheus --version       # Test Prometheus"
+echo "  grafana-server -v          # Test Grafana"
+echo "  ansible --version          # Test Ansible"
+echo ""
+echo -e "${CYAN}Services:${NC}"
+echo "  systemctl status docker    # Check Docker service"
+echo "  systemctl status jenkins   # Check Jenkins service"
+echo "  systemctl status prometheus # Check Prometheus service"
+echo "  systemctl status grafana-server # Check Grafana service"
+echo ""
+echo -e "${CYAN}Web Access:${NC}"
+echo "  http://localhost:8080      # Jenkins (if running)"
+echo "  http://localhost:9090      # Prometheus (if running)"
+echo "  http://localhost:3000      # Grafana (if running)"
+echo ""
+echo -e "${CYAN}CLI Utilities:${NC}"
 echo "  fzf --version              # Test FZF"
 echo "  nvim --version             # Test Neovim"
-echo "  docker ps                  # Test Docker"
-echo "  kubectl version --client   # Test Kubectl"
 echo "  bat --version              # Test Bat"
 echo "  rg --version               # Test Ripgrep"
 echo "  eza --version              # Test Eza"
 echo "  btop --version             # Test btop"
 echo "  z ~                        # Test Zoxide"
 echo "  tldr ls                    # Test tldr"
-echo "  aws --version              # Test AWS CLI"
-echo "  terraform version          # Test Terraform"
 
 echo -e "\n${CYAN}${BOLD}For detailed testing, run individual commands above.${NC}\n"
