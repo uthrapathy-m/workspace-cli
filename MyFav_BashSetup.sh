@@ -69,7 +69,15 @@ netstat-table() {
 }
 
 # Quick system info
-alias sysinfo='echo -e "\n${CYAN}System Information:${NC}\n"; echo "Hostname: $(hostname)"; echo "OS: $(cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2 | tr -d '"'\'")"; echo "Kernel: $(uname -r)"; echo "Uptime: $(uptime -p)"; echo "Memory: $(free -h | awk '"'"'/^Mem:/ {print $3 "/" $2}'"'"')"; echo "Disk: $(df -h / | awk '"'"'NR==2 {print $3 "/" $2 " (" $5 " used)"}'"'"')"'#!/bin/bash
+sysinfo() {
+    echo -e "\n${CYAN}System Information:${NC}\n"
+    echo "Hostname: $(hostname)"
+    echo "OS: $(cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2 | tr -d '"')"
+    echo "Kernel: $(uname -r)"
+    echo "Uptime: $(uptime -p)"
+    echo "Memory: $(free -h | awk '/^Mem:/ {print $3 "/" $2}')"
+    echo "Disk: $(df -h / | awk 'NR==2 {print $3 "/" $2 " (" $5 " used)"}')"
+}
 
 #############################################
 # Workspace Productivity Boost Script
@@ -477,8 +485,7 @@ alias psg='ps aux | grep -v grep | grep -i -e VSZ -e'
 alias disk='df -h'
 alias cpu='top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '"'"'{print 100 - $1"%"}'"'"''
 
-# Quick system info
-alias sysinfo='echo -e "\n${CYAN}System Information:${NC}\n"; echo "Hostname: $(hostname)"; echo "OS: $(cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2 | tr -d '"'\'")"; echo "Kernel: $(uname -r)"; echo "Uptime: $(uptime -p)"; echo "Memory: $(free -h | awk '"'"'/^Mem:/ {print $3 "/" $2}'"'"')"; echo "Disk: $(df -h / | awk '"'"'NR==2 {print $3 "/" $2 " (" $5 " used)"}'"'"')"'
+# sysinfo function defined above
 
 # Update system
 if command -v apt &> /dev/null; then
