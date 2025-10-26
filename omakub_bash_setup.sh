@@ -209,7 +209,16 @@ alias disk='df -h'
 # ============================================
 alias cp='cp -iv'
 alias mv='mv -iv'
-alias rm='rm -iv'
+
+# ============================================
+# Safe delete - move to trash instead of permanent removal
+# ============================================
+alias rm='trash'
+alias trash-list='list_trash'
+alias trash-restore='restore_trash'
+alias trash-empty='empty_trash'
+alias trash-clean='clean_old_trash'
+alias force-rm='force_rm'
 alias mkdir='mkdir -pv'
 
 # ============================================
@@ -260,13 +269,13 @@ create_functions() {
 # ============================================
 
 # Git commit with message
-gcm() {
-    if [ -z "$1" ]; then
-        echo "Usage: gcm <message>"
-        return 1
-    fi
-    git commit -m "$*"
-}
+#gcm() {
+#    if [ -z "$1" ]; then
+#        echo "Usage: gcm <message>"
+#        return 1
+#    fi
+#    git commit -m "$*"
+#}
 
 # Quick commit and push
 gcp() {
@@ -397,9 +406,9 @@ up() {
 }
 
 # Find files
-ff() {
-    find . -type f -iname '*'"$*"'*' -ls
-}
+#ff() {
+#    find . -type f -iname '*'"$*"'*' -ls
+#}
 
 # Extract archives
 extract() {
@@ -470,6 +479,245 @@ notes() {
 # Check port
 port() {
     nc -zv localhost $1
+}
+# ============================================
+# TRASH MANAGEMENT SYSTEM
+# ============================================
+
+# Trash directory setup
+TRASH_DIR="$HOME/.local/share/Trash/files"
+TRASH_INFO="$HOME/.local/share/Trash/info"
+
+# Initialize trash directories
+init_trash() {
+    mkdir -p "$TRASH_DIR" "$TRASH_INFO"
+}
+
+# Move files to trash instead of removing (with safety checks)
+trash() {
+    init_trash
+    
+    # Safety check for dangerous patterns
+    for arg in "$@"; do
+        if [[ "$arg" == "/" ]] || [[ "$arg" == "/*" ]] || [[ "$arg" == "~" ]] || [[ "$arg" == "~/*" ]]; then
+            echo -e "\033[1;31m[DANGER]\033[0m Refusing to trash: $arg"
+            echo "This is too dangerous. Use force-rm with extreme caution if needed."
+            return 1
+        fi
+        
+        # Check for root directory deletions
+        if [[ "$arg" == "/bin" ]] || [[ "$arg" == "/usr" ]] || [[ "$arg" == "/etc" ]] || [[ "$arg" == "/var" ]]; then
+            echo -e "\033[1;31m[DANGER]\033[0m Refusing to trash system directory: $arg"
+            return 1
+        fi
+    done
+    
+    # Count files if wildcard is used
+    local file_count=0
+    local has_wildcard=false
+    
+    for item in "$@"; do
+        if [[ "$item" != -* ]]; then
+            # Expand wildcards to count files
+            if [[ "$item" == *"*"* ]] || [[ "$item" == *"?"* ]]; then
+                has_wildcard=true
+                # Use array to properly count expanded files
+                local files=($item)
+                file_count=$((file_count + ${#files[@]}))
+            fi
+        fi
+    done
+    
+    # Warn if moving many files
+    if [ "$has_wildcard" = true ] && [ "$file_count" -gt 50 ]; then
+        echo -e "\033[1;33m[WARNING]\033[0m This will move $file_count files to trash"
+        read -p "Continue? (yes/no): " confirm
+        if [ "$confirm" != "yes" ]; then
+            echo "[CANCELLED]"
+            return 1
+        fi
+    fi
+    
+    # Process each item
+    local moved_count=0
+    for item in "$@"; do
+        # Skip flags
+        if [[ "$item" == -* ]]; then
+            continue
+        fi
+        
+        # Expand wildcards
+        for file in $item; do
+            if [ -e "$file" ]; then
+                local filename=$(basename "$file")
+                local timestamp=$(date +%Y%m%d_%H%M%S_%N)
+                local trash_name="${filename}_${timestamp}"
+                
+                # Get absolute path before moving
+                local abs_path=$(readlink -f "$file")
+                
+                mv "$file" "$TRASH_DIR/$trash_name"
+                echo -e "\033[0;32m[TRASH]\033[0m Moved to trash: $file → $trash_name"
+                
+                # Save metadata for restore
+                echo "$(date '+%Y-%m-%d %H:%M:%S')|$abs_path|$trash_name" >> "$TRASH_INFO/trash.log"
+                
+                moved_count=$((moved_count + 1))
+            else
+                echo -e "\033[0;31m[ERROR]\033[0m File not found: $file"
+            fi
+        done
+    done
+    
+    if [ "$moved_count" -gt 0 ]; then
+        echo -e "\033[1;36m[INFO]\033[0m $moved_count item(s) moved to trash"
+        echo -e "       Use 'trash-list' to view, 'trash-restore' to recover"
+    fi
+}
+
+# List trash contents
+list_trash() {
+    init_trash
+    
+    echo -e "\n\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    echo -e "\033[1;33mTRASH CONTENTS\033[0m"
+    echo -e "\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    
+    if [ -z "$(ls -A "$TRASH_DIR" 2>/dev/null)" ]; then
+        echo -e "\033[0;32m[EMPTY]\033[0m Trash is empty"
+    else
+        ls -lh "$TRASH_DIR"
+        echo ""
+        local count=$(ls -1 "$TRASH_DIR" | wc -l)
+        local size=$(du -sh "$TRASH_DIR" 2>/dev/null | cut -f1)
+        echo -e "\033[1;36m[INFO]\033[0m Total: $count items, Size: $size"
+    fi
+    
+    echo -e "\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\n"
+}
+
+# Restore from trash
+restore_trash() {
+    init_trash
+    
+    if [ -z "$1" ]; then
+        echo "Usage: trash-restore <filename_from_trash>"
+        echo ""
+        list_trash
+        return 1
+    fi
+    
+    local file="$1"
+    
+    if [ -f "$TRASH_DIR/$file" ]; then
+        # Try to get original location from log
+        local original_path=$(grep "$file" "$TRASH_INFO/trash.log" | tail -1 | cut -d'|' -f2)
+        
+        if [ -n "$original_path" ]; then
+            local original_dir=$(dirname "$original_path")
+            local original_name=$(basename "$original_path")
+            
+            # Ask where to restore
+            echo -e "\033[1;33m[RESTORE]\033[0m Original location: $original_path"
+            read -p "Restore to original location? (yes/no/current): " choice
+            
+            case $choice in
+                yes)
+                    mkdir -p "$original_dir"
+                    mv "$TRASH_DIR/$file" "$original_path"
+                    echo -e "\033[0;32m[RESTORED]\033[0m $file → $original_path"
+                    ;;
+                current)
+                    mv "$TRASH_DIR/$file" "./$original_name"
+                    echo -e "\033[0;32m[RESTORED]\033[0m $file → ./$original_name"
+                    ;;
+                *)
+                    mv "$TRASH_DIR/$file" .
+                    echo -e "\033[0;32m[RESTORED]\033[0m $file → $(pwd)"
+                    ;;
+            esac
+        else
+            mv "$TRASH_DIR/$file" .
+            echo -e "\033[0;32m[RESTORED]\033[0m $file → $(pwd)"
+        fi
+        
+        # Remove from log
+        sed -i "/$file/d" "$TRASH_INFO/trash.log" 2>/dev/null
+    else
+        echo -e "\033[0;31m[ERROR]\033[0m File not found in trash: $file"
+        echo ""
+        list_trash
+        return 1
+    fi
+}
+
+# Empty entire trash
+empty_trash() {
+    init_trash
+    
+    if [ -z "$(ls -A "$TRASH_DIR" 2>/dev/null)" ]; then
+        echo -e "\033[0;32m[INFO]\033[0m Trash is already empty"
+        return 0
+    fi
+    
+    local count=$(ls -1 "$TRASH_DIR" | wc -l)
+    local size=$(du -sh "$TRASH_DIR" 2>/dev/null | cut -f1)
+    
+    echo -e "\033[1;31m[WARNING]\033[0m About to permanently delete:"
+    echo "  • $count items"
+    echo "  • $size of data"
+    echo ""
+    read -p "Type 'DELETE' to confirm permanent removal: " confirm
+    
+    if [ "$confirm" = "DELETE" ]; then
+        rm -rf "$TRASH_DIR"/*
+        rm -f "$TRASH_INFO/trash.log"
+        echo -e "\033[1;32m[EMPTIED]\033[0m Trash has been permanently emptied"
+    else
+        echo -e "\033[0;33m[CANCELLED]\033[0m Trash not emptied"
+    fi
+}
+
+# Clean old trash (files older than 30 days)
+clean_old_trash() {
+    init_trash
+    
+    local before_count=$(ls -1 "$TRASH_DIR" 2>/dev/null | wc -l)
+    
+    find "$TRASH_DIR" -type f -mtime +30 -delete 2>/dev/null
+    
+    local after_count=$(ls -1 "$TRASH_DIR" 2>/dev/null | wc -l)
+    local removed=$((before_count - after_count))
+    
+    if [ "$removed" -gt 0 ]; then
+        echo -e "\033[1;32m[CLEANED]\033[0m Removed $removed files older than 30 days from trash"
+    else
+        echo -e "\033[0;32m[INFO]\033[0m No old files to clean"
+    fi
+}
+
+# Force delete (bypass trash) - use with EXTREME caution!
+force_rm() {
+    if [ -z "$1" ]; then
+        echo "Usage: force-rm <file>"
+        echo -e "\033[1;31m[WARNING]\033[0m This PERMANENTLY deletes files, bypassing trash!"
+        return 1
+    fi
+    
+    echo -e "\033[1;31m[DANGER]\033[0m You are about to PERMANENTLY delete:"
+    for item in "$@"; do
+        echo "  • $item"
+    done
+    echo ""
+    echo -e "\033[1;33m[WARNING]\033[0m This action CANNOT be undone!"
+    read -p "Type 'PERMANENT DELETE' to confirm: " confirm
+    
+    if [ "$confirm" = "PERMANENT DELETE" ]; then
+        /bin/rm -rf "$@"
+        echo -e "\033[1;31m[DELETED]\033[0m Permanently removed: $*"
+    else
+        echo -e "\033[0;33m[CANCELLED]\033[0m Nothing was deleted"
+    fi
 }
 FUNCEOF
 
@@ -605,6 +853,15 @@ UTILITIES:
   note <text> - add quick note
   notes       - show all notes
   ff <name>   - find files by name
+
+TRASH MANAGEMENT (SAFE DELETE):
+  rm <file>           - move to trash (safe delete)
+  rm -rf <file>       - SAFE! moves to trash (ignores -rf)
+  trash-list          - show trash contents
+  trash-restore <f>   - restore file from trash
+  trash-empty         - empty trash (permanent delete)
+  trash-clean         - remove files older than 30 days
+  force-rm <file>     - DANGEROUS! bypass trash (permanent)
 
 View this anytime: cheat
 CHEATEOF
