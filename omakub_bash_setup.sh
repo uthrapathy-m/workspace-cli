@@ -841,7 +841,9 @@ SYSTEM:
   syssum      - show detailed system summary
   myip        - show public IP
   lports      - show listening ports
-  disk        - disk usage
+  disk        - disk usage (df -h)
+  duf         - disk usage (modern, colorful)
+  ncdu        - disk usage analyzer (interactive)
 
 UTILITIES:
   extract <f> - extract any archive
